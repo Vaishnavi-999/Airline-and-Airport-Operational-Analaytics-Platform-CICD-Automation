@@ -10,22 +10,22 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1) Checkout repo
+      # 1️⃣ Checkout repo
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2) Setup Python
+      # 2️⃣ Setup Python
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.9"
 
-      # 3) Syntax check Glue script
+      # 3️⃣ Syntax check Glue script
       - name: Syntax check Glue script
         run: |
           python -m py_compile glue_job.py
 
-      # 4) Configure AWS credentials
+      # 4️⃣ Configure AWS credentials
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -33,13 +33,13 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
 
-      # 5) Upload Glue script to S3
+      # 5️⃣ Upload Glue script to S3
       - name: Upload Glue script to S3
         run: |
           aws s3 cp glue_job.py \
             s3://airport-airline-operations-analytics-platform/scripts/glue_job.py
 
-      # 6) Deploy Glue Job Stack
+      # 6️⃣ Deploy Glue Job Stack
       - name: Deploy Glue Job Stack
         run: |
           aws cloudformation deploy \
@@ -50,44 +50,82 @@ jobs:
               ScriptBucket=airport-airline-operations-analytics-platform \
               ScriptKey=scripts/glue_job.py
 
-      # 7) Trigger Glue Job (safe mode)
-      - name: Trigger Glue Job (safe)
+      # 7️⃣ Start Glue Job
+      - name: Start Glue Job
+        id: start_glue
         run: |
-          RUNNING_COUNT=$(aws glue get-job-runs \
+          JOB_RUN_ID=$(aws glue start-job-run \
             --job-name "Final Glue" \
-            --max-results 5 \
-            --query 'JobRuns[?JobRunState==`RUNNING`].JobRunId' \
-            --output text | wc -w)
+            --query JobRunId \
+            --output text)
 
-          if [ "$RUNNING_COUNT" -eq 0 ]; then
-            echo "Starting Glue job..."
-            aws glue start-job-run --job-name "Final Glue"
-          else
-            echo "Glue job already running, skipping start"
-          fi
+          echo "JOB_RUN_ID=$JOB_RUN_ID" >> $GITHUB_ENV
+          echo "Started Glue Job: $JOB_RUN_ID"
 
-      # 8) Start Crawlers
+      # 8️⃣ WAIT till Glue Job SUCCESS / FAIL
+      - name: Wait for Glue Job to finish
+        run: |
+          echo "Waiting for Glue Job to finish..."
+
+          while true; do
+            STATUS=$(aws glue get-job-run \
+              --job-name "Final Glue" \
+              --run-id "$JOB_RUN_ID" \
+              --query 'JobRun.JobRunState' \
+              --output text)
+
+            echo "Current Glue Job status: $STATUS"
+
+            if [ "$STATUS" = "SUCCEEDED" ]; then
+              echo "Glue Job SUCCESS"
+              break
+            fi
+
+            if [ "$STATUS" = "FAILED" ] || [ "$STATUS" = "STOPPED" ] || [ "$STATUS" = "TIMEOUT" ]; then
+              echo "Glue Job FAILED"
+              exit 1
+            fi
+
+            sleep 30
+          done
+
+      # 9️⃣ Deploy Crawlers Stack
+      - name: Deploy Glue Crawlers Stack
+        run: |
+          aws cloudformation deploy \
+            --stack-name glue-crawlers-stack \
+            --template-file crawler-template.yaml \
+            --capabilities CAPABILITY_NAMED_IAM
+
+      # 🔟 Run Crawlers
       - name: Run Glue Crawlers
         run: |
           aws glue start-crawler --name airline || echo "airline already running"
           aws glue start-crawler --name customers || echo "customers already running"
 
-      # 9) Wait for Crawlers
+      # 1️⃣1️⃣ WAIT till Crawlers finish
       - name: Wait for Crawlers
         run: |
           for crawler in airline customers; do
-            echo "Waiting for $crawler"
+            echo "Waiting for crawler: $crawler"
+
             while true; do
-              state=$(aws glue get-crawler \
+              STATE=$(aws glue get-crawler \
                 --name $crawler \
                 --query 'Crawler.State' \
                 --output text)
 
-              if [ "$state" = "READY" ]; then
-                echo "$crawler finished"
+              echo "$crawler state: $STATE"
+
+              if [ "$STATE" = "READY" ]; then
+                echo "$crawler completed"
                 break
               fi
 
               sleep 20
             done
           done
+
+      # ✅ Done
+      - name: Pipeline Completed
+        run: echo "Glue Job + Crawlers completed successfully 🎉"
