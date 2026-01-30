@@ -49,10 +49,11 @@ jobs:
             --parameter-overrides \
               ScriptBucket=airport-airline-operations-analytics-platform \
               ScriptKey=scripts/glue_job.py
-       - name: Trigger Glue Job Run
-         run: |
-          aws glue get-job --job-name "Final Glue"
+      - name: Trigger Glue Job Run
+        if: ${{ success() }}
+        run: |
           aws glue start-job-run --job-name "Final Glue"
+
 
 
 
