@@ -103,58 +103,6 @@ For each crawler:
 ---
 
 ## 🗃️ S3 Data Locations
-
-
----
-
-## ⚙️ CI/CD Pipeline Details
-
-The pipeline is triggered on every push to the **main** branch.
-
-### Pipeline Steps
-
-1. Checkout repository
-2. Configure AWS credentials
-3. Upload Glue ETL script to S3
-4. Deploy Glue Job using CloudFormation
-5. Trigger Glue Job and wait until it **SUCCEEDS**
-6. Run **Airline** Glue Crawler
-7. Validate Airline crawler execution
-8. Run **Customers** Glue Crawler
-9. Validate Customers crawler execution
-10. Mark pipeline success
-
-Pipeline **fails automatically** if:
-- Glue Job fails or stops
-- Any crawler fails
-
----
-
-## 🧪 Glue Job Execution Logic
-
-- Glue Job is triggered once per pipeline run
-- Pipeline continuously polls job status
-- Job must reach `SUCCEEDED`
-- Prevents concurrent execution issues
-
----
-
-## 🗂️ Glue Crawlers Execution Strategy
-
-Crawlers are executed **one by one** (not parallel):
-
-1. Airline crawler
-2. Customers crawler
-
-For each crawler:
-- Trigger crawler
-- Wait until crawler state becomes `READY`
-- Validate last crawl status
-- Pipeline fails if status is `FAILED`
-
----
-
-## 🗃️ S3 Data Locations
 s3://airport-airline-operations-analytics-platform/silver/airline/
 s3://airport-airline-operations-analytics-platform/silver/customers/
 
