@@ -14,7 +14,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2) Setup Python (Glue compatible)
+      # 2) Setup Python
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -39,7 +39,7 @@ jobs:
           aws s3 cp glue_job.py \
             s3://airport-airline-operations-analytics-platform/scripts/glue_job.py
 
-      # 6) Deploy Glue Job via CloudFormation
+      # 6) Deploy Glue Job (CloudFormation)
       - name: Deploy Glue Job Stack
         run: |
           aws cloudformation deploy \
@@ -50,12 +50,23 @@ jobs:
               ScriptBucket=airport-airline-operations-analytics-platform \
               ScriptKey=scripts/glue_job.py
 
-      # 7) Run Glue Job
-      - name: Trigger Glue Job
+      # 7) SAFE Trigger Glue Job (no concurrent error)
+      - name: Trigger Glue Job (safe)
         run: |
-          aws glue start-job-run --job-name "Final Glue"
+          RUNNING_COUNT=$(aws glue get-job-runs \
+            --job-name "Final Glue" \
+            --max-results 5 \
+            --query 'JobRuns[?JobRunState==`RUNNING`].JobRunId | length(@)' \
+            --output text)
 
-      # 8) Deploy Crawlers via CloudFormation
+          if [ "$RUNNING_COUNT" -eq "0" ]; then
+            echo "Starting Glue job..."
+            aws glue start-job-run --job-name "Final Glue"
+          else
+            echo "Glue job already running, skipping start"
+          fi
+
+      # 8) Deploy Crawlers (CloudFormation)
       - name: Deploy Glue Crawlers Stack
         run: |
           aws cloudformation deploy \
