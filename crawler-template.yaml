@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: Glue Crawlers Stack
+Description: Glue Crawlers Stack (Silver Layer)
 
 Resources:
 
@@ -24,9 +24,10 @@ Resources:
       Name: airline
       Role: !GetAtt GlueCrawlerRole.Arn
       DatabaseName: analytics_db
+      TablePrefix: airline_
       Targets:
         S3Targets:
-          - Path: s3://airport-airline-operations-analytics-platform/processed/airline/
+          - Path: s3://airport-airline-operations-analytics-platform/silver/airline/
       SchemaChangePolicy:
         UpdateBehavior: UPDATE_IN_DATABASE
         DeleteBehavior: DEPRECATE_IN_DATABASE
@@ -37,9 +38,10 @@ Resources:
       Name: customers
       Role: !GetAtt GlueCrawlerRole.Arn
       DatabaseName: analytics_db
+      TablePrefix: customers_
       Targets:
         S3Targets:
-          - Path: s3://airport-airline-operations-analytics-platform/processed/customers/
+          - Path: s3://airport-airline-operations-analytics-platform/silver/customers/
       SchemaChangePolicy:
         UpdateBehavior: UPDATE_IN_DATABASE
         DeleteBehavior: DEPRECATE_IN_DATABASE
