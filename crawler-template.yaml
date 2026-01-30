@@ -1,75 +1,29 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: CloudFormation template to create 2 AWS Glue Crawlers (airline & customers)
-
-Parameters:
-  GlueDatabaseName:
-    Type: String
-    Default: airline_analytics_db
-
-  DataBucket:
-    Type: String
-    Default: airport-airline-operations-analytics-platform
+Description: Glue Crawlers for Airline and Customers data
 
 Resources:
-
-  GlueCrawlerRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: glue-crawler-role
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: glue.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
-      Policies:
-        - PolicyName: GlueCrawlerS3Access
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action:
-                  - s3:GetObject
-                  - s3:PutObject
-                  - s3:ListBucket
-                Resource:
-                  - !Sub arn:aws:s3:::${DataBucket}
-                  - !Sub arn:aws:s3:::${DataBucket}/*
-
   AirlineCrawler:
     Type: AWS::Glue::Crawler
     Properties:
       Name: airline
-      Role: !GetAtt GlueCrawlerRole.Arn
-      DatabaseName: !Ref GlueDatabaseName
+      Role: AWSGlueServiceRoleDefault
+      DatabaseName: airline_db
       Targets:
         S3Targets:
-          - Path: !Sub s3://${DataBucket}/output/airline/
-      TablePrefix: airline_
+          - Path: s3://airport-airline-operations-analytics-platform/airline/
       SchemaChangePolicy:
         UpdateBehavior: UPDATE_IN_DATABASE
-        DeleteBehavior: DEPRECATE_IN_DATABASE
+        DeleteBehavior: LOG
 
   CustomersCrawler:
     Type: AWS::Glue::Crawler
     Properties:
       Name: customers
-      Role: !GetAtt GlueCrawlerRole.Arn
-      DatabaseName: !Ref GlueDatabaseName
+      Role: AWSGlueServiceRoleDefault
+      DatabaseName: airline_db
       Targets:
         S3Targets:
-          - Path: !Sub s3://${DataBucket}/output/customers/
-      TablePrefix: customers_
+          - Path: s3://airport-airline-operations-analytics-platform/customers/
       SchemaChangePolicy:
         UpdateBehavior: UPDATE_IN_DATABASE
-        DeleteBehavior: DEPRECATE_IN_DATABASE
-
-Outputs:
-  AirlineCrawlerName:
-    Value: !Ref AirlineCrawler
-
-  CustomersCrawlerName:
-    Value: !Ref CustomersCrawler
+        DeleteBehavior: LOG
