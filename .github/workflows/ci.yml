@@ -1,0 +1,23 @@
+name: Glue CI Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  glue-ci:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      - name: Syntax check Glue script
+        run: |
+          python -m py_compile glue_job.py
