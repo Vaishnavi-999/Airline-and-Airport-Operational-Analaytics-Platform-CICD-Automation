@@ -1,4 +1,4 @@
-name: Glue CI Pipeline
+name: Glue CI/CD Pipeline
 
 on:
   push:
@@ -6,24 +6,46 @@ on:
       - main
 
 jobs:
-  glue-ci:
+  glue-deploy:
     runs-on: ubuntu-latest
 
     steps:
+      # 1) Repo checkout
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # 2) Python setup (Glue compatible)
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.9'
 
+      # 3) Basic syntax check for Glue script
       - name: Syntax check Glue script
         run: |
           python -m py_compile glue_job.py
+
+      # 4) Configure AWS credentials (from GitHub Secrets)
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
+
+      # 5) Upload Glue script to S3 (overwrite with latest)
+      - name: Upload Glue script to S3
+        run: |
+          aws s3 cp glue_job.py \
+            s3://airport-airline-operations-analytics-platform/scripts/glue_job.py
+
+      # 6) Deploy / Update CloudFormation (Glue Job = Final Glue)
+      - name: Deploy CloudFormation stack
+        run: |
+          aws cloudformation deploy \
+            --stack-name glue-cicd-stack \
+            --template-file template.yaml \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --parameter-overrides \
+              ScriptBucket=airport-airline-operations-analytics-platform \
+              ScriptKey=scripts/glue_job.py
