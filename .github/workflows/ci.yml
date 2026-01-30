@@ -39,7 +39,7 @@ jobs:
           aws s3 cp glue_job.py \
             s3://airport-airline-operations-analytics-platform/scripts/glue_job.py
 
-      # 6) Deploy Glue Job CloudFormation
+      # 6) Deploy Glue Job via CloudFormation
       - name: Deploy Glue Job Stack
         run: |
           aws cloudformation deploy \
