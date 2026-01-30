@@ -1,12 +1,12 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: Glue Crawlers for Airline and Customers data
+Description: Glue Crawlers for Airline & Customers
 
 Resources:
   AirlineCrawler:
     Type: AWS::Glue::Crawler
     Properties:
       Name: airline
-      Role: AWSGlueServiceRoleDefault
+      Role: arn:aws:iam::808887184367:role/AWSGlueServiceRoleDefault
       DatabaseName: airline_db
       Targets:
         S3Targets:
@@ -19,7 +19,7 @@ Resources:
     Type: AWS::Glue::Crawler
     Properties:
       Name: customers
-      Role: AWSGlueServiceRoleDefault
+      Role: arn:aws:iam::808887184367:role/AWSGlueServiceRoleDefault
       DatabaseName: airline_db
       Targets:
         S3Targets:
