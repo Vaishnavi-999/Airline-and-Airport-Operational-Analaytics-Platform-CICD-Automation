@@ -13,21 +13,6 @@ Infrastructure is implemented using:
 
 ## 🏗️ End-to-End Flow
 
-# 🚀 AWS Glue CI/CD Pipeline (CloudFormation + Python SDK)
-
-## 📌 Project Overview
-
-This project implements a complete **CI/CD pipeline for AWS Glue** using **GitHub Actions**.  
-The pipeline automates deployment, execution, and monitoring of Glue Jobs and Glue Crawlers.
-
-Infrastructure is implemented using:
-- **CloudFormation (YAML)**
-- **Python SDK (boto3)**
-
----
-
-## 🏗️ End-to-End Flow
-
 GitHub Push (main)
 |
 v
