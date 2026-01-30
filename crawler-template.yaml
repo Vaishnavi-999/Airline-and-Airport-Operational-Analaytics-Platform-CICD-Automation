@@ -1,29 +1,45 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: Glue Crawlers for Airline & Customers
+Description: Glue Crawlers Stack
 
 Resources:
+
+  GlueCrawlerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: glue-crawler-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: glue.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
+        - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+
   AirlineCrawler:
     Type: AWS::Glue::Crawler
     Properties:
       Name: airline
-      Role: arn:aws:iam::808887184367:role/AWSGlueServiceRoleDefault
-      DatabaseName: airline_db
+      Role: !GetAtt GlueCrawlerRole.Arn
+      DatabaseName: analytics_db
       Targets:
         S3Targets:
-          - Path: s3://airport-airline-operations-analytics-platform/airline/
+          - Path: s3://airport-airline-operations-analytics-platform/processed/airline/
       SchemaChangePolicy:
         UpdateBehavior: UPDATE_IN_DATABASE
-        DeleteBehavior: LOG
+        DeleteBehavior: DEPRECATE_IN_DATABASE
 
   CustomersCrawler:
     Type: AWS::Glue::Crawler
     Properties:
       Name: customers
-      Role: arn:aws:iam::808887184367:role/AWSGlueServiceRoleDefault
-      DatabaseName: airline_db
+      Role: !GetAtt GlueCrawlerRole.Arn
+      DatabaseName: analytics_db
       Targets:
         S3Targets:
-          - Path: s3://airport-airline-operations-analytics-platform/customers/
+          - Path: s3://airport-airline-operations-analytics-platform/processed/customers/
       SchemaChangePolicy:
         UpdateBehavior: UPDATE_IN_DATABASE
-        DeleteBehavior: LOG
+        DeleteBehavior: DEPRECATE_IN_DATABASE
