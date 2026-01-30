@@ -39,7 +39,7 @@ jobs:
           aws s3 cp glue_job.py \
             s3://airport-airline-operations-analytics-platform/scripts/glue_job.py
 
-      # 6) Deploy Glue Job (CloudFormation)
+      # 6) Deploy Glue Job Stack
       - name: Deploy Glue Job Stack
         run: |
           aws cloudformation deploy \
@@ -50,37 +50,29 @@ jobs:
               ScriptBucket=airport-airline-operations-analytics-platform \
               ScriptKey=scripts/glue_job.py
 
-      # 7) SAFE Trigger Glue Job (no concurrent error)
+      # 7) Trigger Glue Job (safe mode)
       - name: Trigger Glue Job (safe)
         run: |
           RUNNING_COUNT=$(aws glue get-job-runs \
             --job-name "Final Glue" \
             --max-results 5 \
-            --query 'JobRuns[?JobRunState==`RUNNING`].JobRunId | length(@)' \
-            --output text)
+            --query 'JobRuns[?JobRunState==`RUNNING`].JobRunId' \
+            --output text | wc -w)
 
-          if [ "$RUNNING_COUNT" -eq "0" ]; then
+          if [ "$RUNNING_COUNT" -eq 0 ]; then
             echo "Starting Glue job..."
             aws glue start-job-run --job-name "Final Glue"
           else
             echo "Glue job already running, skipping start"
           fi
 
-      # 8) Deploy Crawlers (CloudFormation)
-      - name: Deploy Glue Crawlers Stack
-        run: |
-          aws cloudformation deploy \
-            --stack-name glue-crawlers-stack \
-            --template-file crawler-template.yaml \
-            --capabilities CAPABILITY_NAMED_IAM
-
-      # 9) Start Crawlers
+      # 8) Start Crawlers
       - name: Run Glue Crawlers
         run: |
           aws glue start-crawler --name airline || echo "airline already running"
           aws glue start-crawler --name customers || echo "customers already running"
 
-      # 10) Wait for Crawlers to finish
+      # 9) Wait for Crawlers
       - name: Wait for Crawlers
         run: |
           for crawler in airline customers; do
@@ -90,10 +82,12 @@ jobs:
                 --name $crawler \
                 --query 'Crawler.State' \
                 --output text)
+
               if [ "$state" = "READY" ]; then
                 echo "$crawler finished"
                 break
               fi
+
               sleep 20
             done
           done
