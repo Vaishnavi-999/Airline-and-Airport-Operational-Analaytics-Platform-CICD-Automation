@@ -10,22 +10,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ Checkout repo
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2️⃣ Setup Python
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.9"
 
-      # 3️⃣ Glue script syntax check
-      - name: Syntax check Glue script
-        run: |
-          python -m py_compile glue_job.py
-
-      # 4️⃣ Configure AWS credentials
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -33,37 +25,21 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
 
-      # 5️⃣ Upload Glue script to S3
-      - name: Upload Glue script to S3
+      - name: Upload Glue script
         run: |
           aws s3 cp glue_job.py \
-            s3://airport-airline-operations-analytics-platform/scripts/glue_job.py
+          s3://airport-airline-operations-analytics-platform/scripts/glue_job.py
 
-      # 6️⃣ Deploy / Update Glue Job stack
       - name: Deploy Glue Job Stack
         run: |
           aws cloudformation deploy \
             --stack-name glue-cicd-stack \
             --template-file template.yaml \
-            --capabilities CAPABILITY_NAMED_IAM \
-            --parameter-overrides \
-              ScriptBucket=airport-airline-operations-analytics-platform \
-              ScriptKey=scripts/glue_job.py
+            --capabilities CAPABILITY_NAMED_IAM
 
-      # 7️⃣ Trigger Glue Job (SAFE – avoid concurrent runs)
-      - name: Trigger Glue Job (safe)
+      # ---------------- GLUE JOB ----------------
+      - name: Run Glue Job and Wait
         run: |
-          RUNNING_COUNT=$(aws glue get-job-runs \
-            --job-name "Final Glue" \
-            --max-results 1 \
-            --query 'JobRuns[0].JobRunState' \
-            --output text)
-
-          if [ "$RUNNING_COUNT" = "RUNNING" ]; then
-            echo "Glue job already running. Skipping new run."
-            exit 0
-          fi
-
           JOB_RUN_ID=$(aws glue start-job-run \
             --job-name "Final Glue" \
             --query JobRunId \
@@ -71,7 +47,6 @@ jobs:
 
           echo "Started Glue Job: $JOB_RUN_ID"
 
-          # ⏳ Wait for Glue Job to finish
           while true; do
             STATUS=$(aws glue get-job-run \
               --job-name "Final Glue" \
@@ -79,71 +54,74 @@ jobs:
               --query JobRun.JobRunState \
               --output text)
 
-            echo "Glue job status: $STATUS"
+            echo "Glue Job status: $STATUS"
 
             if [ "$STATUS" = "SUCCEEDED" ]; then
-              echo "Glue job succeeded"
               break
             fi
 
             if [ "$STATUS" = "FAILED" ] || [ "$STATUS" = "STOPPED" ]; then
-              echo "Glue job failed"
               exit 1
             fi
 
             sleep 30
           done
 
-      # 8️⃣ Deploy Crawlers (idempotent)
-      - name: Deploy Glue Crawlers Stack
-        run: |
-          aws cloudformation deploy \
-            --stack-name glue-crawlers-stack \
-            --template-file crawler-template.yaml \
-            --capabilities CAPABILITY_NAMED_IAM
-
-      # 9️⃣ Start Crawlers
-      - name: Run Glue Crawlers
+      # ---------------- AIRLINE CRAWLER ----------------
+      - name: Run Airline Crawler
         run: |
           aws glue start-crawler --name airline || echo "airline already running"
-          aws glue start-crawler --name customers || echo "customers already running"
 
-      # 🔟 Wait for Crawlers (CHECK CURRENT RUN ONLY)
-      - name: Wait for Crawlers (FAIL if crawler failed)
-        run: |
-          for crawler in airline customers; do
-            echo "Waiting for crawler: $crawler"
-
-            # Wait until crawler finishes
-            while true; do
-              STATE=$(aws glue get-crawler \
-                --name $crawler \
-                --query 'Crawler.State' \
-                --output text)
-
-              if [ "$STATE" = "READY" ]; then
-                break
-              fi
-
-              sleep 20
-            done
-
-            # Check LAST run status (current execution)
-            LAST_STATUS=$(aws glue get-crawler \
-              --name $crawler \
-              --query 'Crawler.LastCrawl.Status' \
+          while true; do
+            STATE=$(aws glue get-crawler \
+              --name airline \
+              --query 'Crawler.State' \
               --output text)
 
-            echo "$crawler last run status: $LAST_STATUS"
-
-            if [ "$LAST_STATUS" != "SUCCEEDED" ]; then
-              echo "$crawler FAILED"
-              exit 1
+            if [ "$STATE" = "READY" ]; then
+              break
             fi
-
-            echo "$crawler SUCCESS"
+            sleep 20
           done
 
-      # ✅ Pipeline completed
+          STATUS=$(aws glue get-crawler \
+            --name airline \
+            --query 'Crawler.LastCrawl.Status' \
+            --output text)
+
+          echo "Airline crawler status: $STATUS"
+
+          if [ "$STATUS" != "SUCCEEDED" ]; then
+            exit 1
+          fi
+
+      # ---------------- CUSTOMERS CRAWLER ----------------
+      - name: Run Customers Crawler
+        run: |
+          aws glue start-crawler --name customers || echo "customers already running"
+
+          while true; do
+            STATE=$(aws glue get-crawler \
+              --name customers \
+              --query 'Crawler.State' \
+              --output text)
+
+            if [ "$STATE" = "READY" ]; then
+              break
+            fi
+            sleep 20
+          done
+
+          STATUS=$(aws glue get-crawler \
+            --name customers \
+            --query 'Crawler.LastCrawl.Status' \
+            --output text)
+
+          echo "Customers crawler status: $STATUS"
+
+          if [ "$STATUS" != "SUCCEEDED" ]; then
+            exit 1
+          fi
+
       - name: Pipeline Success
-        run: echo "🎉 Glue Job + Crawlers completed successfully"
+        run: echo "🎉 Glue Job + Airline DB + Customers DB updated successfully"
