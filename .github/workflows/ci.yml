@@ -10,22 +10,22 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1) Repo checkout
+      # 1) Checkout repo
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2) Python setup (Glue compatible)
+      # 2) Setup Python (Glue compatible)
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.9'
+          python-version: "3.9"
 
-      # 3) Basic syntax check for Glue script
+      # 3) Syntax check Glue script
       - name: Syntax check Glue script
         run: |
           python -m py_compile glue_job.py
 
-      # 4) Configure AWS credentials (from GitHub Secrets)
+      # 4) Configure AWS credentials
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -33,14 +33,14 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
 
-      # 5) Upload Glue script to S3 (overwrite with latest)
+      # 5) Upload Glue script to S3
       - name: Upload Glue script to S3
         run: |
           aws s3 cp glue_job.py \
             s3://airport-airline-operations-analytics-platform/scripts/glue_job.py
 
-      # 6) Deploy / Update CloudFormation (Glue Job = Final Glue)
-      - name: Deploy CloudFormation stack
+      # 6) Deploy Glue Job CloudFormation
+      - name: Deploy Glue Job Stack
         run: |
           aws cloudformation deploy \
             --stack-name glue-cicd-stack \
@@ -49,11 +49,40 @@ jobs:
             --parameter-overrides \
               ScriptBucket=airport-airline-operations-analytics-platform \
               ScriptKey=scripts/glue_job.py
-      - name: Trigger Glue Job Run
-        if: ${{ success() }}
+
+      # 7) Run Glue Job
+      - name: Trigger Glue Job
         run: |
           aws glue start-job-run --job-name "Final Glue"
 
+      # 8) Deploy Crawlers via CloudFormation
+      - name: Deploy Glue Crawlers Stack
+        run: |
+          aws cloudformation deploy \
+            --stack-name glue-crawlers-stack \
+            --template-file crawler-template.yaml \
+            --capabilities CAPABILITY_NAMED_IAM
 
+      # 9) Start Crawlers
+      - name: Run Glue Crawlers
+        run: |
+          aws glue start-crawler --name airline || echo "airline already running"
+          aws glue start-crawler --name customers || echo "customers already running"
 
-
+      # 10) Wait for Crawlers to finish
+      - name: Wait for Crawlers
+        run: |
+          for crawler in airline customers; do
+            echo "Waiting for $crawler"
+            while true; do
+              state=$(aws glue get-crawler \
+                --name $crawler \
+                --query 'Crawler.State' \
+                --output text)
+              if [ "$state" = "READY" ]; then
+                echo "$crawler finished"
+                break
+              fi
+              sleep 20
+            done
+          done
