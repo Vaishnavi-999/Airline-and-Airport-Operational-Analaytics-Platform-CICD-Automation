@@ -1,0 +1,62 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Final Glue Job CI/CD Template
+
+Parameters:
+  ScriptBucket:
+    Type: String
+    Description: S3 bucket where Glue script is stored
+
+  ScriptKey:
+    Type: String
+    Description: S3 key (path) of Glue script
+
+Resources:
+
+  GlueJobRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: final-glue-cicd-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: glue.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+      Path: /
+
+  FinalGlueJob:
+    Type: AWS::Glue::Job
+    Properties:
+      Name: Final Glue
+      Description: Airport Airline Operations Analytics – Final Glue Job
+      Role: !GetAtt GlueJobRole.Arn
+      GlueVersion: "4.0"
+
+      Command:
+        Name: glueetl
+        PythonVersion: "3"
+        ScriptLocation: !Sub s3://${ScriptBucket}/${ScriptKey}
+
+      DefaultArguments:
+        --job-language: python
+        --enable-continuous-cloudwatch-log: "true"
+        --enable-metrics: "true"
+        --TempDir: !Sub s3://${ScriptBucket}/temp/
+        --spark-event-logs-path: !Sub s3://${ScriptBucket}/spark-logs/
+
+      ExecutionProperty:
+        MaxConcurrentRuns: 1
+
+      WorkerType: G.1X
+      NumberOfWorkers: 5
+      Timeout: 2880
+      MaxRetries: 1
+
+Outputs:
+  GlueJobName:
+    Description: Deployed Glue Job Name
+    Value: Final Glue
