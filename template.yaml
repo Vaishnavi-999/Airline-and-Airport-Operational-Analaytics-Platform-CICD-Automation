@@ -45,3 +45,9 @@ Resources:
       Timeout: 2880
       MaxRetries: 1
 
+Outputs:
+  GlueJobName:
+    Description: Name of the Glue job
+    Value: !Ref FinalGlueJob
+    Export:
+      Name: !Sub "${AWS::StackName}-GlueJobName"

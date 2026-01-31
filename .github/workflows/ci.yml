@@ -35,13 +35,17 @@ jobs:
           aws cloudformation deploy \
             --stack-name glue-cicd-stack \
             --template-file template.yaml \
+            --parameter-overrides \
+              ScriptBucket=airport-airline-operations-analytics-platform \
+              ScriptKey=scripts/glue_job.py \
+              JobName=FinalGlue \
             --capabilities CAPABILITY_NAMED_IAM
 
       # ---------------- GLUE JOB ----------------
       - name: Run Glue Job and Wait
         run: |
           JOB_RUN_ID=$(aws glue start-job-run \
-            --job-name "Final Glue" \
+            --job-name FinalGlue \
             --query JobRunId \
             --output text)
 
@@ -49,7 +53,7 @@ jobs:
 
           while true; do
             STATUS=$(aws glue get-job-run \
-              --job-name "Final Glue" \
+              --job-name FinalGlue \
               --run-id $JOB_RUN_ID \
               --query JobRun.JobRunState \
               --output text)
