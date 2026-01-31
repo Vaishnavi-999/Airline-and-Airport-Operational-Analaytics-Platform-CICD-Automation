@@ -31,7 +31,7 @@ spark.conf.set("spark.sql.shuffle.partitions", "200")
 raw_df = spark.read \
     .option("header", True) \
     .option("inferSchema", True) \
-    .csv("s3://airport-airline-operations-analytics-platform/raw/")
+    .csv("s3://airport-airline-operations-analytics-platform/raw/*.csv")
 
 # ==================================================
 # 3. COMMON CLEANING
@@ -222,5 +222,4 @@ gold_df.write \
 # JOB COMMIT
 # ==================================================
 job.commit()
-# template path fix test
 
